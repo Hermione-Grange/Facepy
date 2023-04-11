@@ -33,7 +33,7 @@ def main():
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help))
-    application.add_handler(CommandHandler("quiz", quiz()))
+    application.add_handler(CommandHandler("quiz", quiz))
 
 
     # Запускаем приложение.
