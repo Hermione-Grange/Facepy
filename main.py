@@ -15,13 +15,13 @@ for i in range(len(lines)):
     list_of_famous_people.append(line)
 
 
-def quiz2():
+def making_quiz_photos():
     a = random.randint(0, 2)
     url_photo = list_of_famous_people[a].split(", ")[1]
     return url_photo
 
 async def question(update, context):
-    url_photo = quiz2()
+    url_photo = making_quiz_photos()
     await update.message.reply_photo(photo=url_photo)
 
 
@@ -72,5 +72,5 @@ def main():
 
 # Запускаем функцию main() в случае запуска скрипта.
 if __name__ == '__main__':
-    quiz2()
+    making_quiz_photos()
     main()
