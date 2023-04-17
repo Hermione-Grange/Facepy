@@ -7,6 +7,7 @@ import random
 
 
 parametr = ""
+count = 0
 list_of_famous_people = []
 f = open('famous_people.txt', encoding="utf8")
 lines = f.readlines()
@@ -16,13 +17,18 @@ for i in range(len(lines)):
 
 
 def making_quiz_photos():
-    a = random.randint(0, 2)
+    global a
+    a = random.randint(0, 9)
     url_photo = list_of_famous_people[a].split(", ")[1]
     return url_photo
 
 async def question(update, context):
+    global count
     url_photo = making_quiz_photos()
-    await update.message.reply_photo(photo=url_photo)
+    if parametr != "quiz3":
+        await update.message.reply_photo(photo=url_photo)
+    else:
+        await update.message.reply_text("Вкиторина окончена!) Спасибо за участие! Вы ответили верно " + str(count) + " вопросов из 3")
 
 
 # Напишем соответствующие функции.
@@ -44,9 +50,42 @@ async def help(update, context):
                                     )
 
 
+async def echo(update, context):
+    await update.message.reply_text(update.message.text)
+
+
+async def checking_answer(update, context):
+    global count
+    user_text = update.message.text
+    stroka = list_of_famous_people[a]
+    spisok = stroka.split(", ")
+    if user_text == spisok[0]:
+        await update.message.reply_text("Да! Верно)")
+        count += 1
+    else:
+        await update.message.reply_text("Увы и ах.. это неверный ответ. Это -- " + spisok[0] + ".")
+    await question(update, context)
+
+
+async def get_answer(update, context):
+    global parametr
+    if parametr == "quiz":
+        await checking_answer(update, context)
+        parametr = "quiz2"
+    elif parametr == "quiz2":
+        await checking_answer(update, context)
+        parametr = "quiz3"
+    elif parametr == "quiz3":
+        await checking_answer(update, context)
+        parametr = ""
+    else:
+        await echo(update, context)
+
+
 async def quiz(update, context):
     """Отправляет сообщение когда получена команда /quiz"""
-    parametr = "qiuz"
+    global parametr
+    parametr = "quiz"
     await update.message.reply_text("Угадай личность! вопросов будет 3")
     await question(update, context)
 
@@ -54,6 +93,7 @@ async def quiz(update, context):
 async def echo2(update, context):
     file = update.message.photo[-1]
     await update.message.reply_photo(photo=file)
+
 
 def main():
     # Создаём объект Application.
@@ -63,9 +103,10 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help))
     application.add_handler(CommandHandler("quiz", quiz))
-    text_handler2 = MessageHandler(filters.PHOTO, echo2)
+    #pplication.add_handler((MessageHandler(filters.PHOTO, echo2))
+    text_handler = MessageHandler(filters.TEXT, get_answer)
+    application.add_handler(text_handler)
 
-    application.add_handler(text_handler2)
 
     # Запускаем приложение.
     application.run_polling()
