@@ -1,15 +1,17 @@
 # Добавим необходимый объект из модуля telegram.ext
 from telegram.ext import CommandHandler
 from telegram.ext import Application, MessageHandler, filters
-import asyncio
-#import face_recognition
+import face_recognition
 import random
-
+from requests import get
+#from face_encoding import *
+import numpy as np
 
 parametr = ""
 count = 0
+known_encodings = []
 list_of_famous_people = []
-f = open('famous_people.txt', encoding="utf8")
+f = open('famous_people.txt', encoding="utf-8-sig")
 lines = f.readlines()
 for i in range(len(lines)):
     line = lines[i].rstrip('\n')
@@ -18,9 +20,10 @@ for i in range(len(lines)):
 
 def making_quiz_photos():
     global a
-    a = random.randint(0, 9)
+    a = random.randint(0, len(list_of_famous_people))
     url_photo = list_of_famous_people[a].split(", ")[1]
     return url_photo
+
 
 async def question(update, context):
     global count
@@ -47,6 +50,7 @@ async def help(update, context):
                                     "/quiz -- запускает викторину, в которой я буду предлагать тебе фотографии известных "
                                     "людей, а ты отгадывать кто это \n"
                                     "/guess -- присылай фотографию мне и я угадаю кто на ней изображен!"
+                                    "/search --  пришли мне фотографию известного человека, а я тебе пришлю его фотографию)"
                                     )
 
 
@@ -78,6 +82,10 @@ async def get_answer(update, context):
     elif parametr == "quiz3":
         await checking_answer(update, context)
         parametr = ""
+    elif parametr == "guess":
+        await update.message.reply_text("Загрузи фото!)")
+    elif parametr == "search":
+        await searching_photo(update, context)
     else:
         await echo(update, context)
 
@@ -90,9 +98,55 @@ async def quiz(update, context):
     await question(update, context)
 
 
-async def echo2(update, context):
-    file = update.message.photo[-1]
-    await update.message.reply_photo(photo=file)
+async def guess(update, context):
+    global parametr
+    parametr = "guess"
+    await getting_photo(update, context)
+
+
+async def getting_photo(update, context):
+    if parametr == "guess":
+        obj = await context.bot.getFile(update.message.photo[-1].file_id)
+        file = get(obj.file_path)
+        print("Get user image " + str(file))
+        with open('mytmp.jpg', 'wb') as f:
+            f.write(file.content)
+
+        img_file = open("mytmp.jpg", "rb")
+        fc_image = face_recognition.load_image_file(img_file)
+        face_encoding = face_recognition.face_encodings(fc_image)[-1]
+        face_distances = face_recognition.face_distance(known_encodings, face_encoding)
+        face_distance = face_distances.min()
+        count = 0
+        for i in range(len(face_distances)):
+            count += 1
+            if face_distances[i] == face_distance:
+                break
+        name = list_of_famous_people[count - 1].split(", ")[0]
+        if face_distance < 0.5:
+            await update.message.reply_text("Это точно " + name + "!")
+        elif face_distance > 0.5 and face_distance < 0.59:
+            await update.message.reply_text("Наверное, это " + name + ".")
+        else:
+            await update.message.reply_text("Я не знаю кто это((")
+        print("face distance of " + name + " is " + str(face_distance))
+    else:
+        await update.message.reply_text("Я не знаю что вы хотите. Вызовите, пожалуйста, одну из моих команд!)")
+
+
+async def search(update, context):
+    global parametr
+    parametr = "search"
+    await update.message.reply_text("Введите, пожалуйста, имя и фамилию известной личности, и я вам выдам ее фотографию.")
+    await searching_photo(update, context)
+
+
+async def searching_photo(update, context):
+    user_text = update.message.text
+    for i in range(len(list_of_famous_people)):
+        if user_text == list_of_famous_people[i].split(", ")[0]:
+            url_photo = list_of_famous_people[i].split(", ")[1]
+            await update.message.reply_photo(photo=url_photo)
 
 
 def main():
@@ -103,15 +157,18 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help))
     application.add_handler(CommandHandler("quiz", quiz))
-    #pplication.add_handler((MessageHandler(filters.PHOTO, echo2))
-    text_handler = MessageHandler(filters.TEXT, get_answer)
-    application.add_handler(text_handler)
-
+    application.add_handler(CommandHandler("quess", guess))
+    application.add_handler(CommandHandler("search", search))
+    application.add_handler(MessageHandler(filters.TEXT, get_answer))
+    application.add_handler(MessageHandler(filters.TEXT, search))
+    application.add_handler(MessageHandler(filters.PHOTO, getting_photo))
 
     # Запускаем приложение.
     application.run_polling()
 
 # Запускаем функцию main() в случае запуска скрипта.
 if __name__ == '__main__':
-    making_quiz_photos()
+    print("Load encodings...")
+    known_encodings = np.load("face_encoding.npy")
+    print(known_encodings)
     main()
