@@ -4,9 +4,15 @@ from telegram.ext import Application, MessageHandler, filters
 import face_recognition
 import random
 from requests import get
+from PIL import Image, ImageDraw
 #from face_encoding import *
 import numpy as np
 
+eyebrows_color = (68, 54, 39, 128)
+lips_color = (150, 0, 0, 128)
+eyes_color = (0, 0, 0, 30)
+eyeliner_color = (0, 0, 0, 255)
+eyeliner_width = 2
 parametr = ""
 count = 0
 known_encodings = []
@@ -37,6 +43,7 @@ async def question(update, context):
 # Напишем соответствующие функции.
 # Их сигнатура и поведение аналогичны обработчикам текстовых сообщений.
 async def start(update, context):
+    global parametr
     """Отправляет сообщение когда получена команда /start"""
     user = update.effective_user
     await update.message.reply_html(
@@ -49,8 +56,9 @@ async def help(update, context):
                                     "У меня есть несколько функций: \n"
                                     "/quiz -- запускает викторину, в которой я буду предлагать тебе фотографии известных "
                                     "людей, а ты отгадывать кто это \n"
-                                    "/guess -- присылай фотографию мне и я угадаю кто на ней изображен!"
-                                    "/search --  пришли мне фотографию известного человека, а я тебе пришлю его фотографию)"
+                                    "/guess -- присылай фотографию мне и я угадаю кто на ней изображен! \n"
+                                    "/search --  пришли мне фотографию известного человека, а я тебе пришлю его фотографию) \n"
+                                    "/makeup -- ....."
                                     )
 
 
@@ -104,16 +112,20 @@ async def guess(update, context):
     await getting_photo(update, context)
 
 
-async def getting_photo(update, context):
-    if parametr == "guess":
-        obj = await context.bot.getFile(update.message.photo[-1].file_id)
-        file = get(obj.file_path)
-        print("Get user image " + str(file))
-        with open('mytmp.jpg', 'wb') as f:
-            f.write(file.content)
+async def loading_picture(update, context):
+    obj = await context.bot.getFile(update.message.photo[-1].file_id)
+    file = get(obj.file_path)
+    print("Get user image " + str(file))
+    with open('mytmp.jpg', 'wb') as f:
+        f.write(file.content)
+    img_file = open("mytmp.jpg", "rb")
+    fc_image = face_recognition.load_image_file(img_file)
+    return fc_image
 
-        img_file = open("mytmp.jpg", "rb")
-        fc_image = face_recognition.load_image_file(img_file)
+async def getting_photo(update, context):
+    global parametr
+    if parametr == "guess":
+        fc_image = await loading_picture(update, context)
         face_encoding = face_recognition.face_encodings(fc_image)[-1]
         face_distances = face_recognition.face_distance(known_encodings, face_encoding)
         face_distance = face_distances.min()
@@ -130,6 +142,8 @@ async def getting_photo(update, context):
         else:
             await update.message.reply_text("Я не знаю кто это((")
         print("face distance of " + name + " is " + str(face_distance))
+    elif parametr == "makeup":
+        await making_up_photo(update, context)
     else:
         await update.message.reply_text("Я не знаю что вы хотите. Вызовите, пожалуйста, одну из моих команд!)")
 
@@ -137,16 +151,60 @@ async def getting_photo(update, context):
 async def search(update, context):
     global parametr
     parametr = "search"
-    await update.message.reply_text("Введите, пожалуйста, имя и фамилию известной личности, и я вам выдам ее фотографию.")
-    await searching_photo(update, context)
+    await update.message.reply_text("Введите, пожалуйста, имя и фамилию известной личности, и я вам выдам ее фотографию."
+                                    "Вы можете указать какой цвет губ, глаз, поводки глаз, бровей, толщину подводки вы хотите.")
 
 
 async def searching_photo(update, context):
     user_text = update.message.text
-    for i in range(len(list_of_famous_people)):
-        if user_text == list_of_famous_people[i].split(", ")[0]:
-            url_photo = list_of_famous_people[i].split(", ")[1]
-            await update.message.reply_photo(photo=url_photo)
+    if user_text in list_of_famous_people:
+        for i in range(len(list_of_famous_people)):
+            if user_text == list_of_famous_people[i].split(", ")[0]:
+                url_photo = list_of_famous_people[i].split(", ")[1]
+                await update.message.reply_photo(photo=url_photo)
+    else:
+        await  update.message.reply_text("Извините, такого человека я не знаю...")
+
+
+async def makeup(update, context):
+    global parametr
+    parametr = "makeup"
+    await update.message.reply_text("Пришли мне фотографию, и я сделаю макияж!)")
+
+
+async def making_up_photo(update, context):
+    image = await loading_picture(update, context)
+    face_landmarks_list = face_recognition.face_landmarks(image)
+    print("LANDMARK_LIST -- ", face_landmarks_list)
+
+    pil_image = Image.fromarray(image)
+    for face_landmarks in face_landmarks_list:
+        d = ImageDraw.Draw(pil_image, 'RGBA')
+
+        # Make the eyebrows into a nightmare
+        d.polygon(face_landmarks['left_eyebrow'], fill=eyebrows_color)
+        d.polygon(face_landmarks['right_eyebrow'], fill=eyebrows_color)
+        d.line(face_landmarks['left_eyebrow'], fill=eyebrows_color, width=2)
+        d.line(face_landmarks['right_eyebrow'], fill=eyebrows_color, width=2)
+
+        # Gloss the lips
+        d.polygon(face_landmarks['top_lip'], fill=lips_color)
+        d.polygon(face_landmarks['bottom_lip'], fill=lips_color)
+        d.line(face_landmarks['top_lip'], fill=lips_color, width=2)
+        d.line(face_landmarks['bottom_lip'], fill=lips_color, width=2)
+
+        # Sparkle the eyes
+        d.polygon(face_landmarks['left_eye'], fill=eyes_color)
+        d.polygon(face_landmarks['right_eye'], fill=eyes_color)
+
+        # Apply some eyeliner
+        d.line(face_landmarks['left_eye'] + [face_landmarks['left_eye'][0]], fill=eyeliner_color, width=eyeliner_width)
+        d.line(face_landmarks['right_eye'] + [face_landmarks['right_eye'][0]], fill=eyeliner_color, width=eyeliner_width)
+
+        pil_image.save("mytmp1.jpg")
+        await update.message.reply_photo(photo="mytmp1.jpg")
+
+
 
 
 def main():
@@ -157,11 +215,12 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help))
     application.add_handler(CommandHandler("quiz", quiz))
-    application.add_handler(CommandHandler("quess", guess))
+    application.add_handler(CommandHandler("guess", guess))
     application.add_handler(CommandHandler("search", search))
+    application.add_handler(CommandHandler("makeup", makeup))
     application.add_handler(MessageHandler(filters.TEXT, get_answer))
-    application.add_handler(MessageHandler(filters.TEXT, search))
     application.add_handler(MessageHandler(filters.PHOTO, getting_photo))
+
 
     # Запускаем приложение.
     application.run_polling()
