@@ -16,6 +16,7 @@ def making_face_encoding():
     for i in range(len(list_of_famous_people)):
         url_photo = list_of_famous_people[i].split(", ")[1]
         response = get(url_photo)
+        print(response)
         with open("tmp" + str(i) + ".jpg", "wb") as img_file:
             img_file.write(response.content)
         img_file = open("tmp" + str(i) + ".jpg", "rb")
