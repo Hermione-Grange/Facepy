@@ -111,6 +111,8 @@ async def get_answer(update, context):
 async def quiz(update, context):
     """Отправляет сообщение когда получена команда /quiz"""
     global parametr
+    global  count
+    count = 0
     parametr = "quiz"
     await update.message.reply_text("Угадай личность! вопросов будет 3")
     await question(update, context)
